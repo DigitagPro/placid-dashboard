@@ -1,0 +1,23 @@
+
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Redirection…</title>
+  <script>
+    // Forwarder: /r.html?a=PLCD-CAR -> Apps Script redirect endpoint
+    const params = new URLSearchParams(location.search);
+    const a = params.get('a');
+    if (!a) {
+      document.write('<pre>Paramètre ?a manquant</pre>');
+    } else {
+      const url = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec' + '?a=' + encodeURIComponent(a);
+      location.replace(url);
+    }
+  </script>
+</head>
+<body>
+  Redirection…
+</body>
+</html>
