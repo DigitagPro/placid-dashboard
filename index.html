@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PLACID — Dashboard</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Small safety: hide content until auth script runs to avoid flicker */
+    html[data-auth="locked"] .container { visibility: hidden; }
+    /* Auth modal styles */
+    #pg-auth { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(2,6,23,0.85); z-index:99999; }
+    #pg-auth .box { background:#0f1720; padding:22px; border-radius:12px; color:#fff; width:360px; box-shadow:0 14px 40px rgba(0,0,0,.6); font-family:Inter, system-ui, Arial; }
+    #pg-auth h2{ margin:0 0 6px; font-size:18px }
+    #pg-auth p{ margin:0 0 12px; color:#aeb7c7; font-size:13px }
+    #pg-auth input{ width:100%; padding:10px 12px; margin-top:8px; border-radius:8px; border:1px solid #243042; background:#07101b; color:#fff; outline:none }
+    #pg-auth button{ margin-top:14px; width:100%; padding:10px; border-radius:8px; border:none; background:#3a7afe; color:#fff; font-weight:700; cursor:pointer }
+    #pg-auth .err{ color:#ff8a8f; margin-top:8px; font-size:13px; display:none }
+    #pg-auth .hint{ margin-top:8px; font-size:12px; color:#6f7b8b }
+  </style>
+</head>
+<body>
+  <!-- AUTH MODAL (client-side) -->
+  <div id="pg-auth" aria-hidden="false" style="display:none">
+    <div class="box" role="dialog" aria-labelledby="auth-title">
+      <h2 id="auth-title">Connexion</h2>
+      <p>Accès réservé — entrez identifiant et mot de passe</p>
+      <input id="pg-user" placeholder="Identifiant" autocomplete="username" />
+      <input id="pg-pass" placeholder="Mot de passe" type="password" autocomplete="current-password" />
+      <button id="pg-submit">Se connecter</button>
+      <div class="err" id="pg-err">Identifiant ou mot de passe incorrect</div>
+      <div class="hint">Si tu veux un accès sécurisé pour client, on mettra Cloudflare Access plus tard.</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="controls">
+      <h1>PLACID — Dashboard</h1>
+      <div class="toggle"><button id="toggle">Mode clair/sombre</button></div>
+    </div>
+    <div class="subtitle">Vue globale et comparatif par ville/agence</div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Total scans</h3>
+        <div class="value" id="kpi-total">–</div>
+      </div>
+      <div class="card">
+        <h3>Villes actives</h3>
+        <div class="value" id="kpi-cities">–</div>
+      </div>
+      <div class="card">
+        <h3>Cumul ce mois</h3>
+        <div class="value" id="kpi-month">–</div>
+      </div>
+      <div class="card">
+        <h3>Variation 7 j</h3>
+        <div class="value"><span id="kpi-change7">–</span> <span class="chip">vs semaine-1</span></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="controls">
+        <input type="date" id="start">
+        <input type="date" id="end">
+        <button id="apply">Appliquer</button>
+        <a class="btn btn--secondary" id="export-ag" href="#">Exporter agences (CSV)</a>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Ville</th>
+              <th>Agence ID</th>
+              <th>Scans</th>
+              <th>Plaques</th>
+              <th>Scans/Plaque</th>
+              <th>Review</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-agencies"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="chart">
+      <canvas id="trend" height="120"></canvas>
+    </div>
+
+    <footer style="margin-top:18px;color:#9aa3b6">PLACID x Digitag Pro — v1</footer>
+  </div>
+
+  <script src="assets/app.js"></script>
+
+  <!-- AUTH SCRIPT: identifiant = "placid", mdp = "123" -->
+  <script>
+  (function(){
+    // Credentials (modifiable)
+    const USER = "placid";
+    const PASS = "123";
+    const KEY  = "placid_auth_ok_v1";
+
+    // lock body until auth checked
+    document.documentElement.setAttribute('data-auth','locked');
+
+    function show() {
+      document.getElementById('pg-auth').style.display = 'flex';
+    }
+    function hide() {
+      document.getElementById('pg-auth').style.display = 'none';
+      document.documentElement.removeAttribute('data-auth');
+    }
+
+    // check sessionStorage
+    try {
+      if (sessionStorage.getItem(KEY) === "1") { hide(); return; }
+    } catch(e){ /* ignore storage errors */ }
+
+    // show modal
+    show();
+
+    var userEl = document.getElementById('pg-user');
+    var passEl = document.getElementById('pg-pass');
+    var errEl  = document.getElementById('pg-err');
+
+    document.getElementById('pg-submit').addEventListener('click', doLogin);
+    passEl.addEventListener('keyup', function(e){ if (e.key === 'Enter') doLogin(); });
+
+    function doLogin(){
+      var u = (userEl.value || "").trim();
+      var p = (passEl.value || "").trim();
+      if (u === USER && p === PASS) {
+        try { sessionStorage.setItem(KEY, "1"); } catch(e){}
+        hide();
+      } else {
+        errEl.style.display = 'block';
+        setTimeout(()=> errEl.style.display='none', 2500);
+      }
+    }
+  })();
+  </script>
+
+  <script>
+    // theme toggle
+    document.getElementById('toggle').addEventListener('click', () => {
+      const isDark = document.documentElement.dataset.theme === 'dark';
+      document.documentElement.dataset.theme = isDark ? 'light' : 'dark';
+    });
+    // export link (CSV) — APP_SCRIPT_BASE must be set in assets/app.js or change here
+    setTimeout(() => {
+      try {
+        const base = (typeof APP_SCRIPT_BASE !== 'undefined') ? APP_SCRIPT_BASE : "https://script.google.com/macros/s/AKfycbyvGUx3cuWXcUTCN7nU4ARtRhfOFWM0XZr03_jdUAtp5-rUe-xFwl7IUgWrX19nukRh9w/exec";
+        document.getElementById('export-ag').href = base + '?api=export&scope=per_agency';
+      } catch(e) { /* ignore */ }
+    }, 500);
+  </script>
+</body>
+</html>
